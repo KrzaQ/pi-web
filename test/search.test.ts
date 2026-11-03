@@ -180,6 +180,19 @@ describe("config", () => {
 		expect(loadConfig(path, env, home).error).toContain("browserCommand");
 	});
 
+	test("uses arcesse when it is on PATH and the file names no browser command", () => {
+		const bin = join(home, "bin");
+		mkdirSync(bin, { recursive: true });
+		writeFileSync(join(bin, "arcesse"), "#!/bin/sh\n", { mode: 0o755 });
+		const withArcesse = { ...env, PATH: bin };
+		expect(loadConfig(join(home, "missing.json"), withArcesse, home).config.browserCommand).toEqual(["arcesse", "read"]);
+		expect(loadConfig(join(home, "missing.json"), env, home).config.browserCommand).toBeUndefined();
+		writeFileSync(path, JSON.stringify({ browserCommand: null }));
+		expect(loadConfig(path, withArcesse, home).config.browserCommand).toBeUndefined();
+		writeFileSync(path, JSON.stringify({ browserCommand: ["other", "--text"] }));
+		expect(loadConfig(path, withArcesse, home).config.browserCommand).toEqual(["other", "--text"]);
+	});
+
 	test("parses env files", () => {
 		expect(parseEnvFile('A=1\n  # x\nexport B="two words"\nC=\nnot a line\n')).toEqual({ A: "1", B: "two words", C: "" });
 	});

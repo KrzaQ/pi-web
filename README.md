@@ -5,8 +5,9 @@ A [pi](https://pi.dev) extension that adds two tools:
 - `web_search` searches the web through [SearXNG](https://docs.searxng.org)
   or [Exa](https://exa.ai)'s hosted MCP server.
 - `web_fetch` reads a page as text close to Markdown, with absolute links.
-  When a site blocks plain requests or needs JavaScript, it can fall back to
-  a browser command that you configure.
+  When a site blocks plain requests or needs JavaScript, it falls back to a
+  real browser: [arcesse](https://github.com/KrzaQ/arcesse) when it is
+  installed, or a browser command that you configure.
 
 It has no runtime dependencies beyond pi and Node.js.
 
@@ -40,7 +41,7 @@ Exa otherwise. `/search` shows the backend, and `/search exa` or
   "backend": "searxng",
   "searxngUrl": "https://search.example",
   "searxngEnvFile": "~/.config/pi-web/searxng.env",
-  "browserCommand": ["my-browser-fetch", "--text"],
+  "browserCommand": ["arcesse", "read"],
   "timeoutMs": 30000
 }
 ```
@@ -49,7 +50,8 @@ Exa otherwise. `/search` shows the backend, and `/search exa` or
   `SEARXNG_TOKEN`. Keep the token there, with mode 600, not in
   `config.json`. The default is `~/.config/pi-web/searxng.env`.
 - `browserCommand` fetches a page with a real browser and prints it as text.
-  pi-web appends the URL. Without it, pi-web has no browser fallback.
+  pi-web appends the URL. Without the key, pi-web uses `arcesse read` when
+  `arcesse` is on `PATH`. `null` turns the browser fallback off.
 
 These environment variables override the files for one pi run:
 `PI_WEB_SEARCH` (`exa` or `searxng`), `PI_WEB_SEARXNG_URL` and

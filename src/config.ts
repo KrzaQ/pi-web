@@ -1,5 +1,5 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { accessSync, constants, readFileSync, statSync } from "node:fs";
+import { delimiter, join } from "node:path";
 
 export type Backend = "exa" | "searxng";
 export const BACKENDS: readonly Backend[] = ["exa", "searxng"];
@@ -20,8 +20,8 @@ export interface Config {
 	exaUrl: string;
 	/**
 	 * A command that fetches a page with a real browser and prints it as text,
-	 * for pages behind bot protection. pi-web appends the URL. Unset: no
-	 * browser fallback.
+	 * for pages behind bot protection. pi-web appends the URL. Unset in the
+	 * file: `arcesse read` when arcesse is on PATH. Null: no browser fallback.
 	 */
 	browserCommand?: string[];
 	timeoutMs: number;
@@ -37,6 +37,26 @@ export function defaults(env: NodeJS.ProcessEnv, home: string): Config {
 
 export function configDir(env: NodeJS.ProcessEnv, home: string): string {
 	return join(env.XDG_CONFIG_HOME || join(home, ".config"), "pi-web");
+}
+
+/** The browser command pi-web uses when the config names none. */
+export const ARCESSE = "arcesse";
+
+/** Whether an executable file of this name is on PATH. */
+export function onPath(name: string, env: NodeJS.ProcessEnv): boolean {
+	for (const dir of (env.PATH ?? "").split(delimiter)) {
+		if (!dir) continue;
+		const file = join(dir, name);
+		try {
+			if (statSync(file).isFile()) {
+				accessSync(file, constants.X_OK);
+				return true;
+			}
+		} catch {
+			// Not here, or not executable.
+		}
+	}
+	return false;
 }
 
 /** A leading ~/ means the home directory, as in a shell. */
@@ -78,6 +98,8 @@ function isBackend(value: unknown): value is Backend {
 export function loadConfig(path: string, env: NodeJS.ProcessEnv, home: string): LoadedConfig {
 	const config: Config = defaults(env, home);
 	let error: string | undefined;
+	// Whether the file chose a browser command, or chose none with null.
+	let browserChosen = false;
 
 	let raw: string | undefined;
 	try {
@@ -96,7 +118,10 @@ export function loadConfig(path: string, env: NodeJS.ProcessEnv, home: string): 
 				if (typeof data[key] === "string" && data[key]) config[key] = data[key];
 			}
 			config.searxngEnvFile = expandHome(config.searxngEnvFile, home);
-			if (data.browserCommand !== undefined) {
+			if (data.browserCommand === null) {
+				browserChosen = true;
+			} else if (data.browserCommand !== undefined) {
+				browserChosen = true;
 				const command = data.browserCommand;
 				if (Array.isArray(command) && command.length > 0 && command.every((part) => typeof part === "string" && part)) {
 					config.browserCommand = command.map((part, i) => (i === 0 ? expandHome(part, home) : part));
@@ -109,6 +134,11 @@ export function loadConfig(path: string, env: NodeJS.ProcessEnv, home: string): 
 			error = `${path}: ${(e as Error).message}`;
 		}
 	}
+
+	// arcesse (https://github.com/KrzaQ/arcesse) fetches pages behind bot
+	// protection with a real browser. Use it when it is installed and the
+	// file says nothing else.
+	if (!browserChosen && onPath(ARCESSE, env)) config.browserCommand = [ARCESSE, "read"];
 
 	let envFile: string | undefined;
 	try {
